@@ -2,6 +2,18 @@ from pylab import plt, np
 from tqdm import tqdm
 from itertools import product
 
+def set_seed(seed):
+    """Initialize the seed of pseudo-random generator."""
+
+    if seed is None:
+        import time
+        seed = int((time.time()*10**6) % 4294967295)
+    try:
+        np.random.seed(seed)
+        print("Seed used for pseudo-random values generator:", seed, "\n")
+    except:
+        print("!!! WARNING !!!: Seed was not set correctly.")
+    return seed
 
 class Convictions(np.ndarray):
 
@@ -123,11 +135,12 @@ class Environment(object):
 
 class Experiment(object):
 
-    def __init__(self):
+    def __init__(self, seed=None):
 
         self.arg_for_n_agent = [100]
         self.arg_for_t_max = [10]
         self.arg_for_culture_length = [4]
+        self.seed = set_seed(seed)
 
     def run(self):
 
@@ -216,7 +229,7 @@ def main():
     print()
     print("*" * 10)
     print()
-    exp = Experiment()
+    exp = Experiment(seed=None)
     exp.run()
 
 
