@@ -18,7 +18,8 @@ def set_seed(seed):
 class Convictions(np.ndarray):
 
     '''
-        Convictions inherits from numpy array. What it does in more is to modify the culture when he is modified himself
+        Convictions inherits from numpy array.
+        What it does in more is to modify the culture when it is modified itself.
     '''
 
     def __new__(cls, array_like, culture):
@@ -39,7 +40,8 @@ class Convictions(np.ndarray):
 class Culture(np.ndarray):
 
     '''
-        Culture inherits from numpy array. What it does in more is to have a 'Convictions' object as attribute
+        Culture inherits from numpy array.
+        What it does in more is to have a 'Convictions' object as attribute
     '''
 
     def __new__(cls, convictions):
@@ -59,6 +61,7 @@ class Culture(np.ndarray):
 
     def get_most_robust_convictions(self, n=1):
 
+        # np.argsort() returns the indices that would sort the array
         return np.argsort(np.absolute(self.convictions))[::-1][:n]
 
 
@@ -137,9 +140,9 @@ class Experiment(object):
 
     def __init__(self, seed=None):
 
-        self.arg_for_n_agent = [100]
-        self.arg_for_t_max = [10]
-        self.arg_for_culture_length = [4]
+        self.n_agent_list = [100]
+        self.t_max_list = [10]
+        self.cul_len_list = [4] # culture_length
         self.seed = set_seed(seed)
 
     def run(self):
@@ -148,7 +151,7 @@ class Experiment(object):
         print()
 
         for culture_length, t_max, n_agent \
-                in zip(self.arg_for_culture_length, self.arg_for_t_max, self.arg_for_n_agent):
+                in zip(self.cul_len_list, self.t_max_list, self.n_agent_list):
 
             env = Environment(culture_length=culture_length, t_max=t_max, n_agent=n_agent)
             env.run()
@@ -196,6 +199,7 @@ def test_influence():
 
     print("New convictions of agent", a.culture.convictions)
     print("New culture of agent", a.culture)
+
 
 
 def test_conviction():
