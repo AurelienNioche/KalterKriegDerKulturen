@@ -84,8 +84,16 @@ class Agent(object):
         return arguments_idx, arguments_strength
 
     def get_influenced(self, arguments_idx, arguments_strength):
+        """ Modify the own convictions of an agent based on the 'attacker's argument
+        strength and the agent's own suggestibility.
 
+        Ideas for further dev:
+            suggestibility could be 2-fold depending if the attacker has arguments that goes in the same 'direction'."""
+        # Apply influence formula
         self.culture.convictions[arguments_idx] += self.suggestibility * arguments_strength
+        # Apply threshold in order to not exceed the limits [-1,1]
+        self.culture.convictions[np.where(self.culture.convictions<-1)] = -1
+        self.culture.convictions[np.where(self.culture.convictions>1)] = 1
 
 
 class Environment(object):
@@ -97,11 +105,23 @@ class Environment(object):
         self.culture_length = culture_length
         self.n_agent = n_agent
         # ----------------- #
-
         self.agents = []
+
+        # Generation of random agents
+        self.create_agents()
+
+    def get_matrix_of_agents_culture(self):
+        return np.array([a.culture for a in self.agents])
+
+    def get_matrix_of_agents_convictions(self):
+        return np.array([a.culture.convictions for a in self.agents])
 
     def create_agents(self):
 
+        # intialize list of agents
+        self.agents = []
+
+        # create random agents
         for i in range(self.n_agent):
             a = Agent(
                 proselytism=np.random.randint(self.culture_length),
@@ -111,9 +131,14 @@ class Environment(object):
 
             self.agents.append(a)
 
+    def create_orthogonal_agents(self):
+        """ Create agents that have different cultures.
+            Orthogonal means that one the culture space any agent should differ at least by one bit. """
+        pass
+
     def run(self):
 
-        self.create_agents()
+        # self.create_agents()
 
         for t in tqdm(range(self.t_max)):
 
@@ -135,6 +160,33 @@ class Environment(object):
             arg_idx, arg_strength = initiator.try_to_convince()
             responder.get_influenced(arguments_idx=arg_idx, arguments_strength=arg_strength)
 
+    def mult_cul_all_agents(self, factor):
+        """ Multiply the culture of all agents by a given factor."""
+        for c in [a.culture.convictions for a in self.agents]:
+            c *= factor
+
+    def make_agent_dictator(self, agent_indices):
+        """ Modifiy all agents with the given indices to make them dictators.
+            An agent become a dictator by getting a suggestibility of 0 and a proselytism of 1."""
+        for i in agent_indices:
+            self.agents[i].suggestibility = 0.
+            self.agents[i].proselytism = 1.
+
+    def plot(self):
+        self.plot_culture()
+        self.plot_convictions()
+
+    def plot_culture(self):
+        # plt.figure()
+        plt.matshow(self.get_matrix_of_agents_culture())
+        plt.colorbar()
+        plt.title("Culture")
+
+    def plot_convictions(self):
+        # plt.figure()
+        plt.matshow(self.get_matrix_of_agents_convictions())
+        plt.colorbar()
+        plt.title("Convictions")
 
 class Experiment(object):
 
@@ -236,7 +288,36 @@ def main():
     exp = Experiment(seed=None)
     exp.run()
 
+def main_dictatorship():
+    def print_agents_cul():
+        print("Cultures of agents:")
+        print([a.culture for a in env.agents])
+        print("Convictions of agents:")
+        print([a.culture.convictions for a in env.agents])
+
+    env = Environment(culture_length=4, t_max=100, n_agent=10)
+    print("---init")
+    print_agents_cul()
+
+    print("---lowered")
+    env.mult_cul_all_agents(factor=0.1)
+    print_agents_cul()
+    env.plot()
+
+    print("---make dictators")
+    env.make_agent_dictator([0])
+    print_agents_cul()
+
+    print("---run")
+    env.run()
+
+    print("---runned")
+    print_agents_cul()
+    print(env.get_matrix_of_agents_convictions())
+    env.plot()
+    plt.show()
 
 if __name__ == "__main__":
 
-    main()
+    # main()
+    main_dictatorship()
