@@ -62,11 +62,24 @@ class Culture(np.ndarray):
     def get_most_robust_convictions(self, n=1):
 
         # np.argsort() returns the indices that would sort the array
+        # [::-1] reverse the sorting from increasing to decreasing order
+        # [:n] selects the n first elements
         return np.argsort(np.absolute(self.convictions))[::-1][:n]
 
 
 class Agent(object):
+    """ An agent is defined by its culture/convictions, suggestibility and proselytism.
+    suggestibility and proselytism are supposedly 'innate' attributes,
+    while culture and convictions are subject to changes while being influenced by other agents.
 
+    convictions and culture are interdependent, culture is the 'binarized' (set {0, 1}) version
+        of convictions vector (range [-1,1]).
+
+    suggestibility: real in range [0, 1]
+    proselytism: integer in range [0, culture size]
+    convictions: vector of reals in range [-1, 1]
+    culture: vector of boolean values
+    """
     def __init__(self, suggestibility, proselytism, convictions):
 
         # --- Parameters --- #
@@ -83,32 +96,105 @@ class Agent(object):
 
         return arguments_idx, arguments_strength
 
-    def get_influenced(self, arguments_idx, arguments_strength):
-        """ Modify the own convictions of an agent based on the 'attacker's argument
-        strength and the agent's own suggestibility.
-
-        Ideas for further dev:
-            suggestibility could be 2-fold depending if the attacker has arguments that goes in the same 'direction'."""
-        # Apply influence formula
+    def apply_linear_ind_influence(self, arguments_idx, arguments_strength, verbose=True):
+        """ Apply linear and independent influence formula. """
+        if verbose:
+            print("---apply_linear_ind_influence()")
+            print("self.culture.convictions[arguments_idx]")
+            print(self.culture.convictions[arguments_idx])
+            print("self.suggestibility")
+            print(self.suggestibility)
+            print("arguments_strength")
+            print(arguments_strength)
         self.culture.convictions[arguments_idx] += self.suggestibility * arguments_strength
+
+    def apply_threshold_influence(self):
         # Apply threshold in order to not exceed the limits [-1,1]
         self.culture.convictions[np.where(self.culture.convictions<-1)] = -1
         self.culture.convictions[np.where(self.culture.convictions>1)] = 1
 
+        # TODO: the following line with "np.clip()" does not work. It produces a strange error at a latter point in the program:
+            # AttributeError: 'Convictions' object has no attribute 'parent'
+        # self.culture.convictions = np.clip(self.culture.convictions, -1, 1)
+
+    def get_influenced(self, arguments_idx, arguments_strength):
+        """ Modify the own convictions of an agent based on the 'attacker's argument
+        strength and the agent's own suggestibility.
+        The formula is linear and is independent on the self convictions.
+
+        Inputs:
+            - arguments_idx: list of indices of arguments/?convictions # TO_CHECK
+            - arguments_strength: list of same size as arguments_idx with the correspding strength of arguments of the attacker
+
+        Ideas for further dev:
+            suggestibility could be 2-fold depending if the attacker has arguments that goes in the same 'direction'."""
+        # Apply influence formula
+        self.apply_linear_ind_influence(arguments_idx, arguments_strength)
+        # Apply threshold
+        self.apply_threshold_influence()
+
+    def get_influenced_nonlinear(self, arguments_idx, arguments_strength):
+        """ Modify the own convictions of an agent based on the 'attacker's argument
+        strength and the agent's own suggestibility.
+        The formula is non-linear and is dependent on the self convictions.
+
+        Now the influence is considered to be non-linear :
+            - if self convictions are between -0.5 and +0.5,
+                then the formula is the same than the "linear" version (i.e. get_influenced()).
+            - if self convictions are below are above this range,
+                if the attackers arguments are or same sign, the formulu
+                then the self suggestibility gets weaker the more the convictions gets to the extremes (-1 or +1).
+        suggestibility could be 2-fold depending if the attacker has arguments that goes in the same 'direction'."""
+        # Apply influence formula
+        for (i,s) in zip(arguments_idx, arguments_strength):
+            if self.culture.convictions[i] >= -0.5 or self.culture.convictions[i] <= 0.5:
+                self.apply_linear_ind_influence([i], [s])
+            else:
+                # If the self convitions are in the opposite direction than the attacker's
+                if self.culture.convictions * s < 0:
+                    # The influence is decreased the more the self convictions are closed to the extremes {-1 ; 1}
+                    self.culture.convictions[i] += 2 * (1 - abs(self.culture.convictions[i])) \
+                                                * self.suggestibility * s
+                    # For abs(self.culture.convictions[i]) equal to 0.5 this is identical
+                        # to the classical formula because the new factor equals 1: 2 * (1 - 0.5) = 1
+                elif self.culture.convictions * s > 0:
+                    # The influence is increased the more the self convictions are closed to the extremes {-1 ; 1}
+                    self.culture.convictions[i] += 1 / (2 * (1 - abs(self.culture.convictions[i]))) \
+                                                * self.suggestibility * s
+                else:
+                    # Nothing happens in case it is equal to 0, because the product would be 0 anyway.
+                    pass
+
+        # Apply threshold
+        self.apply_threshold_influence()
+
 
 class Environment(object):
 
-    def __init__(self, n_agent, t_max, culture_length):
+    def __init__(self, n_agent, t_max, culture_length, influence_type=None):
 
         # --- Parameters --- #
         self.t_max = t_max
         self.culture_length = culture_length
         self.n_agent = n_agent
+        self.influence_type = influence_type
+        if self.influence_type is None:
+            self.influence_type = 'linear'
         # ----------------- #
         self.agents = []
 
         # Generation of random agents
         self.create_agents()
+
+    def _assert_agent(self, agent):
+        # sanity checks before influence round
+        assert np.all(agent.culture.convictions >= -1)
+        assert np.all(agent.culture.convictions <= 1)
+        assert agent.suggestibility >= 0
+        assert agent.suggestibility <= 1
+        assert agent.proselytism >= 0
+        assert agent.proselytism <= self.culture_length
+        # TODO: add check if proselytism is an integer
 
     def get_matrix_of_agents_culture(self):
         return np.array([a.culture for a in self.agents])
@@ -138,13 +224,11 @@ class Environment(object):
 
     def run(self):
 
-        # self.create_agents()
-
         for t in tqdm(range(self.t_max)):
 
             self.one_step()
 
-    def one_step(self):
+    def one_step(self, verbose=True):
 
         # Take a random order among the indexes of the agents.
         random_order = np.random.permutation(self.n_agent)
@@ -153,12 +237,25 @@ class Environment(object):
 
             # Each agent is "initiator' during one period.
             initiator = self.agents[i]
-
             # A 'responder' is randomly selected.
             responder = self.agents[np.random.choice(np.delete(np.arange(self.n_agent), i))]
+            if verbose:
+                print("Agent initiator: "+str(i))
+                print("Agent influenced: "+str(self.agents.index(responder)))
+
+            # Sanity checks/asserts
+            self._assert_agent(initiator)
+            self._assert_agent(responder)
 
             arg_idx, arg_strength = initiator.try_to_convince()
-            responder.get_influenced(arguments_idx=arg_idx, arguments_strength=arg_strength)
+
+            if self.influence_type == 'linear':
+                responder.get_influenced(arguments_idx=arg_idx, arguments_strength=arg_strength)
+            elif self.influence_type == 'nonlinear':
+                responder.get_influenced_nonlinear(arguments_idx=arg_idx, arguments_strength=arg_strength)
+            else:
+                str_err = "self.influence_type not set to a correct value: " + str(self.influence_type)
+                raise Exception(str_err)
 
     def mult_cul_all_agents(self, factor):
         """ Multiply the culture of all agents by a given factor."""
@@ -167,10 +264,13 @@ class Environment(object):
 
     def make_agent_dictator(self, agent_indices):
         """ Modifiy all agents with the given indices to make them dictators.
-            An agent become a dictator by getting a suggestibility of 0 and a proselytism of 1."""
+            An agent become a dictator by getting a suggestibility of 0
+                and a proselytism at the maximal value (i.e. the length of the culture)."""
         for i in agent_indices:
+            # A dictator cannot change his believes/opinions
             self.agents[i].suggestibility = 0.
-            self.agents[i].proselytism = 1.
+            # A dictator influences from all his culture
+            self.agents[i].proselytism = self.culture_length
 
     def plot(self):
         self.plot_culture()
@@ -295,13 +395,15 @@ def main_dictatorship():
         print("Convictions of agents:")
         print([a.culture.convictions for a in env.agents])
 
-    env = Environment(culture_length=4, t_max=100, n_agent=10)
+    set_seed(1)
+    env = Environment(culture_length=4, t_max=10, n_agent=10, influence_type='linear')
     print("---init")
     print_agents_cul()
 
-    print("---lowered")
-    env.mult_cul_all_agents(factor=0.1)
-    print_agents_cul()
+    # print("---lowered")
+    # env.mult_cul_all_agents(factor=0.1)
+    # print_agents_cul()
+
     env.plot()
 
     print("---make dictators")
