@@ -159,7 +159,10 @@ class Agent(object):
                         # to the classical formula because the new factor equals 1: 2 * (1 - 0.5) = 1
                 elif self.culture.convictions * s > 0:
                     # The influence is increased the more the self convictions are closed to the extremes {-1 ; 1}
-                    self.culture.convictions[i] += 1 / (2 * (1 - abs(self.culture.convictions[i]))) \
+                    if 1 - abs(self.culture.convictions[i]) < 10**-3:
+                        self.culture.convictions[i] += 10**3 * self.suggestibility * s
+                    else:
+                        self.culture.convictions[i] += 1 / (2 * (1 - abs(self.culture.convictions[i]))) \
                                                 * self.suggestibility * s
                 else:
                     # Nothing happens in case it is equal to 0, because the product would be 0 anyway.
