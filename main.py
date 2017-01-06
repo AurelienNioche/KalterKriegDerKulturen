@@ -1,3 +1,5 @@
+import matplotlib
+matplotlib.use('TkAgg')
 from pylab import plt, np
 from tqdm import tqdm
 from itertools import product
@@ -64,7 +66,23 @@ class Culture(np.ndarray):
         # np.argsort() returns the indices that would sort the array
         # [::-1] reverse the sorting from increasing to decreasing order
         # [:n] selects the n first elements
-        return np.argsort(np.absolute(self.convictions))[::-1][:n]
+        unique_convictions_values = np.unique(self.convictions)
+        if len(unique_convictions_values) == len(self.convictions):
+            return np.argsort(np.absolute(self.convictions))[::-1][:n]
+        else:
+            # Class in decreasing order the unique different values of convictions
+            sorted_unique_values = sorted(unique_convictions_values, reverse=True)
+            to_return = np.zeros(len(self.convictions), dtype=int)
+            i = 0
+            for value in sorted_unique_values:
+                list_of_idx = np.where(self.convictions == value)[0]
+
+                to_return[i: i + len(list_of_idx)] = np.random.permutation(list_of_idx)
+                i += len(list_of_idx)
+
+            return np.asarray(to_return)
+
+        # temp_order = np.argsort(np.absolute(self.convictions))[::-1][:n]
 
 
 class Agent(object):
@@ -96,7 +114,7 @@ class Agent(object):
 
         return arguments_idx, arguments_strength
 
-    def apply_linear_ind_influence(self, arguments_idx, arguments_strength, verbose=True):
+    def apply_linear_ind_influence(self, arguments_idx, arguments_strength, verbose=False):
         """ Apply linear and independent influence formula. """
         if verbose:
             print("---apply_linear_ind_influence()")
@@ -110,8 +128,8 @@ class Agent(object):
 
     def apply_threshold_influence(self):
         # Apply threshold in order to not exceed the limits [-1,1]
-        self.culture.convictions[np.where(self.culture.convictions<-1)] = -1
-        self.culture.convictions[np.where(self.culture.convictions>1)] = 1
+        self.culture.convictions[self.culture.convictions<-1] = -1
+        self.culture.convictions[self.culture.convictions>1] = 1
 
         # TODO: the following line with "np.clip()" does not work. It produces a strange error at a latter point in the program:
             # AttributeError: 'Convictions' object has no attribute 'parent'
@@ -231,7 +249,7 @@ class Environment(object):
 
             self.one_step()
 
-    def one_step(self, verbose=True):
+    def one_step(self, verbose=False):
 
         # Take a random order among the indexes of the agents.
         random_order = np.random.permutation(self.n_agent)
@@ -400,8 +418,8 @@ def main_dictatorship():
         print("Convictions of agents:")
         print([a.culture.convictions for a in env.agents])
 
-    set_seed(1)
-    env = Environment(culture_length=4, t_max=10, n_agent=10, influence_type='linear')
+    # set_seed(1)
+    env = Environment(culture_length=30, t_max=500, n_agent=100, influence_type='linear')
     print("---init")
     print_agents_cul()
 
@@ -412,7 +430,7 @@ def main_dictatorship():
     env.plot()
 
     print("---make dictators")
-    env.make_agent_dictator([0])
+    # env.make_agent_dictator([0])
     print_agents_cul()
 
     print("---run")
