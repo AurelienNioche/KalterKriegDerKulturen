@@ -283,14 +283,14 @@ class Environment(object):
         # plt.figure()
         plt.matshow(self.get_matrix_of_agents_culture())
         plt.colorbar()
-        plt.clim(0,1)
+        plt.clim(0,1) # Sets the min/max limits of colorbar
         plt.title("Culture")
 
     def plot_convictions(self):
         # plt.figure()
         plt.matshow(self.get_matrix_of_agents_convictions())
         plt.colorbar()
-        plt.clim(-1,1)
+        plt.clim(-1,1) # Sets the min/max limits of colorbar
         plt.title("Convictions")
 
 class Experiment(object):
