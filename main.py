@@ -115,7 +115,12 @@ class Agent(object):
         return arguments_idx, arguments_strength
 
     def apply_linear_ind_influence(self, arguments_idx, arguments_strength, verbose=False):
-        """ Apply linear and independent influence formula. """
+        """ Apply linear and independent influence formula.
+
+        Inputs:
+            - arguments_idx: array of indices of convictions
+            - arguments_strength: array of same size as arguments_idx with the correspding strength of arguments of the attacker
+        """
         if verbose:
             print("---apply_linear_ind_influence()")
             print("self.culture.convictions[arguments_idx]")
@@ -127,6 +132,7 @@ class Agent(object):
         self.culture.convictions[arguments_idx] += self.suggestibility * arguments_strength
 
     def apply_threshold_influence(self):
+
         # Apply threshold in order to not exceed the limits [-1,1]
         self.culture.convictions[self.culture.convictions<-1] = -1
         self.culture.convictions[self.culture.convictions>1] = 1
@@ -141,8 +147,8 @@ class Agent(object):
         The formula is linear and is independent on the self convictions.
 
         Inputs:
-            - arguments_idx: list of indices of arguments/?convictions # TO_CHECK
-            - arguments_strength: list of same size as arguments_idx with the correspding strength of arguments of the attacker
+            - arguments_idx: array of indices of convictions
+            - arguments_strength: array of same size as arguments_idx with the correspding strength of arguments of the attacker
 
         Ideas for further dev:
             suggestibility could be 2-fold depending if the attacker has arguments that goes in the same 'direction'."""
@@ -165,8 +171,8 @@ class Agent(object):
         suggestibility could be 2-fold depending if the attacker has arguments that goes in the same 'direction'."""
         # Apply influence formula
         for (i,s) in zip(arguments_idx, arguments_strength):
-            if self.culture.convictions[i] >= -0.5 or self.culture.convictions[i] <= 0.5:
-                self.apply_linear_ind_influence([i], [s])
+            if self.culture.convictions[i] >= -0.1 or self.culture.convictions[i] <= 0.1:
+                self.apply_linear_ind_influence(np.asarray([i]), np.asarray([s]))
             else:
                 # If the self convitions are in the opposite direction than the attacker's
                 if self.culture.convictions * s < 0:
@@ -311,6 +317,12 @@ class Environment(object):
         plt.clim(-1,1) # Sets the min/max limits of colorbar
         plt.title("Convictions")
 
+    def print_agents_culture(self):
+        print("Cultures of agents:")
+        print([a.culture for a in self.agents])
+        print("Convictions of agents:")
+        print([a.culture.convictions for a in self.agents])
+
 class Experiment(object):
 
     def __init__(self, seed=None):
@@ -331,6 +343,59 @@ class Experiment(object):
             env = Environment(culture_length=culture_length, t_max=t_max, n_agent=n_agent)
             env.run()
 
+    def run_evo_plot(self):
+        """ Awesome! All agents become chips!"""
+
+        t_max = 100
+        culture_length = 5
+        env = Environment(culture_length=culture_length, t_max=t_max, n_agent=1000, influence_type='linear')
+        all_possible_cultures = list(product([False,True],repeat=culture_length))
+        all_time_cul = np.zeros((t_max, len(all_possible_cultures)))
+        #TODO: try to understand why
+            #all_time_cul = np.zeros((t_max, len(all_possible_cultures)))
+            #   do not work
+        print(len(all_possible_cultures))
+        print(2**culture_length)
+
+        # env.plot()
+
+        for t in tqdm(range(t_max)):
+            env.one_step()
+            for agent in env.agents:
+                all_time_cul[t, all_possible_cultures.index(tuple(agent.culture))] += 1
+
+        plt.figure()
+        plt.plot(all_time_cul)
+        # env.plot()
+
+
+    def run_dictatorship(self):
+        """ Why dictator is good with few agents and 'stupid alone' when agents are numerous?
+        --> How many agents are necessary for the dictator to be isolated?"""
+
+        # set_seed(1)
+        env = Environment(culture_length=30, t_max=500, n_agent=100, influence_type='linear')
+        print("---init")
+        env.print_agents_culture()
+
+        # print("---lowered")
+        # env.mult_cul_all_agents(factor=0.1)
+        # env.print_agents_culture()
+
+        env.plot()
+
+        print("---make dictators")
+        env.make_agent_dictator([0])
+        env.print_agents_culture()
+
+        print("---run")
+        env.run()
+
+        print("---runned")
+        env.print_agents_culture()
+        print(env.get_matrix_of_agents_convictions())
+        env.plot()
+
     def save(self):
 
         pass
@@ -338,6 +403,7 @@ class Experiment(object):
     def plot(self, results):
 
         pass
+
 
 
 # ---------------- TEST FUNCTIONS ---------------- #
@@ -411,38 +477,13 @@ def main():
     exp = Experiment(seed=None)
     exp.run()
 
-def main_dictatorship():
-    def print_agents_cul():
-        print("Cultures of agents:")
-        print([a.culture for a in env.agents])
-        print("Convictions of agents:")
-        print([a.culture.convictions for a in env.agents])
 
-    # set_seed(1)
-    env = Environment(culture_length=30, t_max=500, n_agent=100, influence_type='linear')
-    print("---init")
-    print_agents_cul()
-
-    # print("---lowered")
-    # env.mult_cul_all_agents(factor=0.1)
-    # print_agents_cul()
-
-    env.plot()
-
-    print("---make dictators")
-    # env.make_agent_dictator([0])
-    print_agents_cul()
-
-    print("---run")
-    env.run()
-
-    print("---runned")
-    print_agents_cul()
-    print(env.get_matrix_of_agents_convictions())
-    env.plot()
-    plt.show()
 
 if __name__ == "__main__":
 
     # main()
-    main_dictatorship()
+    exp = Experiment()
+    #exp.run_dictatorship()
+    exp.run_evo_plot()
+
+    plt.show()
